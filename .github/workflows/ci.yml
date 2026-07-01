@@ -1,0 +1,119 @@
+name: CI DevSecOps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-test:
+    name: Unit Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Installation des dependances
+        run: npm install
+
+      - name: Execution des tests avec couverture
+        run: npm test
+
+      - name: Upload du rapport de couverture
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+  sonar-check:
+    name: SonarQube Cloud Analysis
+    runs-on: ubuntu-latest
+    needs: unit-test
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Installation des dependances
+        run: npm install
+
+      - name: Generation de la couverture
+        run: npm test
+
+      - name: Analyse SonarQube Cloud
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  dependency-scan:
+    name: Dependency Scan (Trivy fs)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Scan des dependances avec Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+
+  build-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [sonar-check, dependency-scan]
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Build de l'image Docker
+        run: docker build -t devsecops-app:${{ github.sha }} .
+
+      - name: Sauvegarde de l'image
+        run: docker save devsecops-app:${{ github.sha }} -o image.tar
+
+      - name: Upload de l'image
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar
+
+  container-scan:
+    name: Container Scan (Trivy image)
+    runs-on: ubuntu-latest
+    needs: build-image
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Telechargement de l'image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Chargement de l'image Docker
+        run: docker load -i image.tar
+
+      - name: Scan de l'image avec Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: devsecops-app:${{ github.sha }}
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH

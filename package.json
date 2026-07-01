@@ -1,0 +1,16 @@
+{
+  "name": "DevSecOps-app",
+  "version": "1.0.0",
+  "description": "DevSecOps TP - CI/CD cloud migration",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "jest --coverage"
+  },
+  "dependencies": {
+    "express": "4.17.1"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}

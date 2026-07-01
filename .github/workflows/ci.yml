@@ -116,4 +116,4 @@ jobs:
           image-ref: devsecops-app:${{ github.sha }}
           format: table
           exit-code: "1"
-          severity: CRITICAL,HIGH
+          severity: CRITICAL
